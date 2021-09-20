@@ -6,7 +6,6 @@ import scipy.sparse
 from numpy.testing import assert_array_equal, assert_array_almost_equal
 
 from ..tpt import committors, reactive_fluxes, mfpts, paths
-# from ..tpt.path import paths
 
 
 ARR_TYPES = [
