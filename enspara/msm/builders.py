@@ -21,9 +21,10 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-def mle(C, prior_counts=None, calculate_eq_probs=True):
+def mle(C,
+        prior_counts=None, calculate_eq_probs=True, ndarr_impl=False, **kwargs):
     """Transform a counts matrix to a probability matrix using
-    maximum-liklihood estimation (prinz) method.
+    maximum-likelihood estimation (prinz) method.
 
     Parameters
     ----------
@@ -59,6 +60,10 @@ def mle(C, prior_counts=None, calculate_eq_probs=True):
     """
 
     C = _apply_prior_counts(C, prior_counts)
+    if ndarr_impl:
+        _mle_implementation = _prinz_mle_numpy
+    else:
+        _mle_implementation = _prinz_mle_py
 
     sparsetype = np.array
     if scipy.sparse.issparse(C):
@@ -70,9 +75,9 @@ def mle(C, prior_counts=None, calculate_eq_probs=True):
         warnings.warn('MLE method cannot suppress calculation of '
                       'equilibrium probabilities, since they are calculated '
                       'together.', category=RuntimeWarning)
-        T, _ = _prinz_mle_py(C)
+        T, _ = _mle_implementation(C, **kwargs)
     else:
-        T, equilibrium = _prinz_mle_py(C)
+        T, equilibrium = _mle_implementation(C, **kwargs)
 
     C = sparsetype(C)
     T = sparsetype(T)

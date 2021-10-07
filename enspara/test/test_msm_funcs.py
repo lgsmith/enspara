@@ -229,7 +229,9 @@ def test_transpose_types():
 def test_mle_types():
 
     for kwargs in [{'calculate_eq_probs': True},
-                   {'calculate_eq_probs': False}]:
+                   {'calculate_eq_probs': False},
+                   {'ndarr_impl': True},
+                   {'ndarr_impl': False}]:
 
         for arr_type in ARR_TYPES:
             in_cts = arr_type(
