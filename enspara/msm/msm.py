@@ -55,7 +55,7 @@ class MSM(SklearnBaseEstimator):
             self.method = method
         else:
             self.method = getattr(builders, method)
-        self.sliding_window = True
+        self.sliding_window = sliding_window
 
     def fit(self, assigns):
         '''Computes a transition count matrix from assigns, then trims

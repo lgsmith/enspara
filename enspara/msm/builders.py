@@ -325,30 +325,31 @@ def _prinz_mle_py(C, tol=1e-10, max_iter=10**5):
 
 def _prinz_mle_numpy(C, tol=1e-10, max_iter=10**6, tol_chk_rate=1):
     # initialize interemediate matrix X, save first initialization for later use
+    C = np.array(C, dtype=float)
     X = C + C.T
     XI = X.copy()
     # these need to be column or row vectors, i.e. they need to have a shape of N,1 or 1,N.
     # sum returns a vector of shape N by default.
-    x = X.sum(axis=0, keepdims=True)
-    c = C.sum(axis=0, keepdims=True)
+    x = np.sum(X, axis=0, keepdims=True)
+    c = np.sum(C, axis=0, keepdims=True)
     # initialize the three solution_to_quadratic arrays for formula x=(-R + sqrt(R*R-4*Q*S))/(2*Q)
     L = np.zeros_like(C)
-    M = np.zeros_like(c)
+    M = np.zeros_like(C)
     Q = c + c.T + XI
     R = np.zeros_like(C)
     S = np.zeros_like(C)
-    newX = np.zeros_like(X)
+    newX = np.zeros_like(X, dtype=float)
 
-    diag_factor = C.diag() / (c - C.diag())
+    diag_factor = C.diagonal() / (c - C.diagonal())
     # iterative section
     for n_iter in range(max_iter):
         # update X diagonal
-        np.fill_diagonal(X, diag_factor * (x - X.diag()))
+        np.fill_diagonal(X, diag_factor * (x - X.diagonal()))
         # Update L and M on path to updating R and S
         np.subtract(x.T, X, out=L)
         np.subtract(x, X, out=M)
 
-        # Update R and S (no need to update Q, as it is exclusively a function of C)
+        # Update R and S (no need to update Q. It is only a function of C)
         # R = c * L - c.T * M - XI * (L + M)
         np.subtract(c * L - c.T * M, XI * (L + M), out=R)
         # S = XI * L * M
@@ -356,11 +357,12 @@ def _prinz_mle_numpy(C, tol=1e-10, max_iter=10**6, tol_chk_rate=1):
 
         # update X, perform tolerance check
         if n_iter % tol_chk_rate == 0:
-            np.divide(-R + np.sqrt(R**2 - 4 * Q * S), 2 * Q, out=newX)
+            np.divide(np.sqrt(R**2 - 4 * Q * S) - R , 2 * Q, out=newX)
             if np.abs(np.nansum(C * np.log(newX/x) - C * np.log(X/x) < tol)):
                 break
-        else:
-            np.nan_to_num((-R + np.sqrt(R**2 - 4 * Q * S)) / (2 * Q), out=X)
+        np.nan_to_num((np.sqrt(R**2 - 4 * Q * S) - R) / (2 * Q), copy=False)
         # update x, rowsum of X
         X.sum(axis=0, out=x, keepdims=True)
+    # return tuple of T, pi
+    return X/x, x/x.sum()
 
