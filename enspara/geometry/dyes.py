@@ -561,9 +561,12 @@ def _sample_FRET_histograms(
     """
 
     #Define the number of photon events observed
-    photon_events_observed=np.random.exponential(size=1, scale=50).astype(int)
+    gen = np.random.default_rng()
+    scale = 50
+    p = 1 - np.exp(-1 / scale)
+    photon_events_observed = gen.geometric(p)
     while photon_events_observed < n_photons:
-        photon_events_observed=np.random.exponential(size=1, scale=50).astype(int)
+        photon_events_observed = gen.geometric(p)
 
     # obtain frames that a photon is emitted
     photon_times = np.cumsum(
