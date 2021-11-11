@@ -277,7 +277,7 @@ class MSM(SklearnBaseEstimator):
                 pickle.dump(self.config, f)
 
             if force and os.path.isdir(path):
-                os.remove(path)
+                shutil.rmtree(path)
 
             if zipfile:
                 raise NotImplementedError("MSMs don't do zip archives yet.")
