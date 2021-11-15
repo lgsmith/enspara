@@ -547,8 +547,8 @@ def sample_FE_probs(dist_distribution, states):
     return FEs
 
 def _sample_FRET_histograms(
-        n_sample, T, populations, dist_distribution, photon_distribution,
-        n_photons, lagtime, n_photon_std):
+        dark_mean_length, pulse_frq, T, populations, dist_distribution,
+        n_photons, lagtime, n_photon_std, sample_window, p_dark_excitation):
     """Helper function for sampling FRET distributions. Proceeds as 
     follows:
     1) generate a trajectory of n_frames, determined by the specified
@@ -560,25 +560,40 @@ def _sample_FRET_histograms(
        the window
     """
 
-    #Define the number of photon events observed
-    photon_events_observed=np.random.exponential(size=1, scale=50).astype(int)
-    while photon_events_observed < n_photons:
-        photon_events_observed=np.random.exponential(size=1, scale=50).astype(int)
+    # #Define the number of photon events observed
+    # photon_events_observed=np.random.exponential(size=1, scale=50).astype(int)
+    # while photon_events_observed < n_photons:
+    #     photon_events_observed=np.random.exponential(size=1, scale=50).astype(int)
+    #
+    # # obtain frames that a photon is emitted
+    # photon_times = np.cumsum(
+    #     photon_distribution(size=photon_events_observed))
+    # photon_frames = np.array(photon_times // lagtime, dtype=int)
+    pulse_frq_lag = int(pulse_frq/lagtime)
+    dark_mean_lag = int(dark_mean_length/lagtime)
+    sample_window_lag = int(sample_window/lagtime)
+    gen = np.random.default_rng()
+    pulses = np.arange(0, sample_window_lag, pulse_frq, dtype=int)
+    pulse_index = 0
+    visible_excitation_inds = []
+    while pulse_index < len(pulses):
+        if gen.random() < p_dark_excitation:
+            advance = gen.geometric(1/dark_mean_lag)
+            pulse_index += int(advance/pulse_frq)
+        else:
+            visible_excitation_inds.append(pulses[pulse_index])
+            pulse_index += 1
 
-    # obtain frames that a photon is emitted
-    photon_times = np.cumsum(
-        photon_distribution(size=photon_events_observed))
-    photon_frames = np.array(photon_times // lagtime, dtype=int)
 
     # determine number of frames to sample MSM
-    n_frames = photon_frames.max() + 1
+    n_frames = sample_window_lag
 
     # sample transition matrix for trajectory
     initial_state = np.random.choice(np.arange(T.shape[0]), p=populations)
     trj = synthetic_trajectory(T, initial_state, n_frames)
 
     # get FRET probabilities for each excited state
-    FRET_probs = sample_FE_probs(dist_distribution, trj[photon_frames])
+    FRET_probs = sample_FE_probs(dist_distribution, trj[visible_excitation_inds])
 
     # flip coin for donor or acceptor emisions
     acceptor_emissions = np.random.random(FRET_probs.shape[0]) <= FRET_probs
