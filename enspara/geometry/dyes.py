@@ -46,7 +46,7 @@ def load_dye(dye):
         dye_names = ", ".join(
             [
                 os.path.split(p)[-1].split('.pdb')[0]
-                for p in dye_path_names]) 
+                for p in dye_path_names])
         raise DataInvalid(
             '%s is not a path to a pdb, nor does it exist in enspara. '
             'Consider using one of the following: %s' % (dye, dye_names))
@@ -67,8 +67,8 @@ def divide_chunks(l, n):
     """Returns `n`-sized chunks from `l`.
     """
     # looping till length l 
-    for i in range(0, len(l), n):  
-        yield l[i:i + n] 
+    for i in range(0, len(l), n):
+        yield l[i:i + n]
 
 
 def int_norm(xs, ys):
@@ -547,8 +547,8 @@ def sample_FE_probs(dist_distribution, states):
     return FEs
 
 def _sample_FRET_histograms(
-        dark_mean_length, pulse_frq, T, populations, dist_distribution,
-        n_photons, lagtime, n_photon_std, sample_window, p_dark_excitation):
+        darkD_mean_length, darkA_mean_length, pulse_frq, T, populations, dist_distribution,
+        lagtime, n_photon_std, sample_window, p_darkD, p_darkA, p_light):
     """Helper function for sampling FRET distributions. Proceeds as 
     follows:
     1) generate a trajectory of n_frames, determined by the specified
@@ -560,36 +560,54 @@ def _sample_FRET_histograms(
        the window
     """
 
-    # #Define the number of photon events observed
-    # photon_events_observed=np.random.exponential(size=1, scale=50).astype(int)
-    # while photon_events_observed < n_photons:
-    #     photon_events_observed=np.random.exponential(size=1, scale=50).astype(int)
-    #
-    # # obtain frames that a photon is emitted
-    # photon_times = np.cumsum(
-    #     photon_distribution(size=photon_events_observed))
-    # photon_frames = np.array(photon_times // lagtime, dtype=int)
-    pulse_frq_lag = int(pulse_frq/lagtime)
-    dark_mean_lag = int(dark_mean_length/lagtime)
+    # 1/(dark donor mean length/pulse freq)
+    darkD_pulse_mean = pulse_frq/darkD_mean_length * lagtime
+    darkA_pulse_mean = pulse_frq/darkA_mean_length * lagtime
     sample_window_lag = int(sample_window/lagtime)
+    d_a_pulse_offset = int(pulse_frq/2)
     gen = np.random.default_rng()
-    pulses = np.arange(0, sample_window_lag, pulse_frq, dtype=int)
+    donor_pulses = np.arange(0, sample_window_lag, pulse_frq, dtype=int)
     pulse_index = 0
     visible_excitation_inds = []
-    while pulse_index < len(pulses):
-        if gen.random() < p_dark_excitation:
-            advance = gen.geometric(1/dark_mean_lag)
-            pulse_index += int(advance/pulse_frq)
-        else:
-            visible_excitation_inds.append(pulses[pulse_index])
-            pulse_index += 1
 
+    # functions to cause each event type to occur.
+    def no_excitation(pulse_index):
+        pulse_index += 1
+
+    def excitation(vis_exces, pulse_index):
+        vis_exces.append(pulse_index)
+        pulse_index += 1
+
+    def donor_dark(gen, darkD_pulse_mean, pulse_index):
+        pulse_index += gen.geometric(darkD_pulse_mean)
+
+    def acceptor_dark(gen, darkA_pulse_mean, pulse_index):
+        pulse_index += gen.geometric(darkA_pulse_mean) + d_a_pulse_offset
+
+    excitation_outcomes = [
+        no_excitation,
+        partial(excitation, visible_excitation_inds),
+        partial(donor_dark, gen, darkD_pulse_mean),
+        partial(acceptor_dark, gen, darkA_pulse_mean),
+    ]
+    # these must be the probabilities of the excitation outcomes happening. The indices must match.
+    excitation_probs = np.array(
+        [
+            1 - (p_darkD + p_darkA + p_light),  # prob of 'missing', maybe zero?
+            p_light,
+            p_darkD,
+            p_darkA
+        ]
+    )
+
+    while pulse_index < len(donor_pulses):
+        gen.choice(excitation_outcomes, p=excitation_probs)(pulse_index)
 
     # determine number of frames to sample MSM
     n_frames = sample_window_lag
 
     # sample transition matrix for trajectory
-    initial_state = np.random.choice(np.arange(T.shape[0]), p=populations)
+    initial_state = gen.choice(np.arange(T.shape[0]), p=populations)
     trj = synthetic_trajectory(T, initial_state, n_frames)
 
     # get FRET probabilities for each excited state
@@ -613,8 +631,9 @@ def _sample_FRET_histograms(
 
 
 def sample_FRET_histograms(
-        T, populations, dist_distribution, photon_distribution,
-        n_photons, lagtime, n_photon_std=None, n_samples=1, n_procs=1):
+        T, populations, dist_distribution, darkD_mean_length, darkA_mean_length,
+        pulse_frq, sample_window, p_darkD, p_darkA, p_light,
+        lagtime, n_photon_std=None, n_samples=1, n_procs=1):
     """samples a MSM to regenerate experimental FRET distributions
 
     Attritbues
@@ -625,11 +644,23 @@ def sample_FRET_histograms(
         State populations.
     dist_distribution : ra.RaggedArray, shape=(n_states, None, 2)
         The probability of a fluorophore-fluorophoe distance.
-    photon_distribution : func,
-        A callable function that samples from a distribution of
-        photon wait-times, i.e. 'np.random.exponential'
-    n_photons : int,
-        The number of photons in a burst.
+    darkD_mean_length : float,
+        The length of the donor dark state, in time units matching lag time.
+    darkA_mean_length : float,
+        The length of the acceptor dark state, in time units matching lag time.
+    pulse_frq : float,
+        The rate that excitation pulses are sent through the sample, time units.
+    sample_window : float,
+        The length of time each photon burst will be monitored for, time units.
+    p_darkD : float,
+        Probability of an excitation causing transition
+        to dark state for donor fluor.
+    p_darkA : float,
+        Probability of an excitation causing transition
+        to dark state for acceptor fluor.
+    p_light : float,
+        Probability of an excitation causing transition
+        of donor to light state that is FRET-competent.
     lagtime : float,
         MSM lagtime used to construct the transition probability
         matrix in nanoseconds.
@@ -651,11 +682,20 @@ def sample_FRET_histograms(
 
     # fill in function values
     sample_func = partial(
-        _sample_FRET_histograms, T=T, populations=populations,
+        _sample_FRET_histograms,
+        T=T,
+        populations=populations,
         dist_distribution=dist_distribution,
-        photon_distribution=photon_distribution,
-        n_photons=n_photons, lagtime=lagtime,
-        n_photon_std=n_photon_std)
+        darkD_mean_length=darkD_mean_length,
+        darkA_mean_length=darkA_mean_length,
+        pulse_frq=pulse_frq,
+        lagtime=lagtime,
+        p_darkA=p_darkA,
+        p_darkD=p_darkD,
+        p_light=p_light,
+        sample_window=sample_window,
+        n_photon_std=n_photon_std
+    )
 
     # multiprocess
     pool = Pool(processes=n_procs)
@@ -702,7 +742,7 @@ def kinetic_avg_distributions(
     """
     # determine bin centers, which are used for averaging bin values
     bin_centers = (bin_edges[1:] + bin_edges[:-1])/2.
-    
+
     # determine sample numbers within n_steps
     sample_nums = np.array(
         np.linspace(
@@ -710,22 +750,22 @@ def kinetic_avg_distributions(
 
     # copy the probability distributions
     new_probs = np.copy(probs)
-    
+
     # iterate over number of samples to average
     for n0 in np.arange(sample_nums.shape[0]):
-        
+
         # obtain a time point
         sample_t = sample_nums[n0]
-        
+
         # propagate transition probability matrix
         tprobs_propped = np.linalg.matrix_power(tprobs, sample_t)
-        
+
         # obtain averaged distributions
         avg_probs = np.matmul(tprobs_propped, probs)
-        
+
         # update probabilities of observing a particular distance
         probs_mats = np.einsum('ij,ik->ijk', new_probs, avg_probs)
-        
+
         # determine what the previously mentioned distances are 
         dists_mat = np.sum(np.meshgrid(bin_centers, bin_centers*n0), axis=0) / (n0+1)
 
@@ -734,20 +774,20 @@ def kinetic_avg_distributions(
 
         # obtain new distributioins by iterating over the labels
         for l in np.arange(bin_centers.shape[0]):
-            
+
             # obtain distance to label center
             abs_dists = np.abs(dists_mat - bin_centers[l])
-            
+
             # determine distances that are within a bin's reach
             bin_widths = bin_edges[1:] - bin_edges[:-1]
             mask = abs_dists < bin_widths[l]
-            
+
             # weight population linearly by distance to label center
             ps = abs_dists[mask]*(-1/bin_widths[l]) + 1
-            
+
             # update label with weighted values
             new_probs[:, l] = np.sum(probs_mats[:,mask] * ps, axis=1)
-            
+
     kavg_probs = new_probs
     return kavg_probs
 
