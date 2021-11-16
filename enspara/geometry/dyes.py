@@ -548,7 +548,7 @@ def sample_FE_probs(dist_distribution, states):
 
 def _sample_FRET_histograms(
         darkD_mean_length, darkA_mean_length, pulse_frq, T, populations, dist_distribution,
-        lagtime, n_photon_std, sample_window, p_darkD, p_darkA, p_light):
+        lagtime, n_photon_std, sample_window, p_darkD, p_darkA, p_light, burst_thresh):
     """Helper function for sampling FRET distributions. Proceeds as 
     follows:
     1) generate a trajectory of n_frames, determined by the specified
@@ -564,18 +564,16 @@ def _sample_FRET_histograms(
     darkD_pulse_mean = pulse_frq/darkD_mean_length * lagtime
     darkA_pulse_mean = pulse_frq/darkA_mean_length * lagtime
     sample_window_lag = int(sample_window/lagtime)
-    d_a_pulse_offset = int(pulse_frq/2)
+    d_a_pulse_offset = int(pulse_frq/(2*lagtime))
     gen = np.random.default_rng()
     donor_pulses = np.arange(0, sample_window_lag, pulse_frq, dtype=int)
-    pulse_index = 0
-    visible_excitation_inds = []
 
     # functions to cause each event type to occur.
     def no_excitation(pulse_index):
         pulse_index += 1
 
-    def excitation(vis_exces, pulse_index):
-        vis_exces.append(pulse_index)
+    def excitation(vis_exces, donor_pulses, pulse_index):
+        vis_exces.append(donor_pulses[pulse_index])
         pulse_index += 1
 
     def donor_dark(gen, darkD_pulse_mean, pulse_index):
@@ -584,11 +582,12 @@ def _sample_FRET_histograms(
     def acceptor_dark(gen, darkA_pulse_mean, pulse_index):
         pulse_index += gen.geometric(darkA_pulse_mean) + d_a_pulse_offset
 
+    visible_excitation_inds = []
     excitation_outcomes = [
         no_excitation,
-        partial(excitation, visible_excitation_inds),
+        partial(excitation, visible_excitation_inds, donor_pulses),
         partial(donor_dark, gen, darkD_pulse_mean),
-        partial(acceptor_dark, gen, darkA_pulse_mean),
+        partial(acceptor_dark, gen, darkA_pulse_mean)
     ]
     # these must be the probabilities of the excitation outcomes happening. The indices must match.
     excitation_probs = np.array(
@@ -600,8 +599,15 @@ def _sample_FRET_histograms(
         ]
     )
 
-    while pulse_index < len(donor_pulses):
-        gen.choice(excitation_outcomes, p=excitation_probs)(pulse_index)
+    # threshold the number of excitation events.
+    while len(visible_excitation_inds) < burst_thresh:
+        pulse_index = 0
+        visible_excitation_inds = []
+        # need to clear and rebind the visible_excitation_inds each time we try to reasses myself
+        excitation_probs[1] = partial(excitation, visible_excitation_inds, donor_pulses)
+        # populate a list of frame indices that correspond to successful excitations from the donor pulses.
+        while pulse_index < len(donor_pulses):
+            gen.choice(excitation_outcomes, p=excitation_probs)(pulse_index)
 
     # determine number of frames to sample MSM
     n_frames = sample_window_lag
@@ -632,7 +638,7 @@ def _sample_FRET_histograms(
 
 def sample_FRET_histograms(
         T, populations, dist_distribution, darkD_mean_length, darkA_mean_length,
-        pulse_frq, sample_window, p_darkD, p_darkA, p_light,
+        pulse_frq, sample_window, p_darkD, p_darkA, p_light, burst_thresh,
         lagtime, n_photon_std=None, n_samples=1, n_procs=1):
     """samples a MSM to regenerate experimental FRET distributions
 
@@ -661,6 +667,9 @@ def sample_FRET_histograms(
     p_light : float,
         Probability of an excitation causing transition
         of donor to light state that is FRET-competent.
+    burst_thresh : int,
+        Number of acceptor emission events required to qualify
+        an excitation sequence as a burst.
     lagtime : float,
         MSM lagtime used to construct the transition probability
         matrix in nanoseconds.
@@ -694,6 +703,7 @@ def sample_FRET_histograms(
         p_darkD=p_darkD,
         p_light=p_light,
         sample_window=sample_window,
+        burst_thresh=burst_thresh,
         n_photon_std=n_photon_std
     )
 
