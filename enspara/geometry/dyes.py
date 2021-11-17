@@ -646,7 +646,7 @@ def _sample_FRET_histograms(
         FRET_probs = sample_FE_probs(dist_distribution, trj[vis_excite_inds])
 
         # flip coin for donor or acceptor emissions
-        acceptor_emissions = np.random.random(FRET_probs.shape[0]) <= FRET_probs
+        acceptor_emissions = gen.random(FRET_probs.shape[0]) <= FRET_probs
 
     if burst_att_idx >= max_burst_att:
         raise Exception(
