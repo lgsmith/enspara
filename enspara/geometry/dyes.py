@@ -547,8 +547,9 @@ def sample_FE_probs(dist_distribution, states):
     return FEs
 
 def _sample_FRET_histograms(
-        darkD_mean_length, darkA_mean_length, pulse_frq, T, populations, dist_distribution,
-        lagtime, n_photon_std, sample_window, p_darkD, p_darkA, p_light, burst_thresh):
+        T, populations, dist_distribution,
+        lagtime, darkD_mean_length, darkA_mean_length, pulse_frq,
+        sample_window, p_darkD, p_darkA, p_light, burst_thresh, n_photon_std):
     """Helper function for sampling FRET distributions. Proceeds as 
     follows:
     1) generate a trajectory of n_frames, determined by the specified
@@ -639,7 +640,7 @@ def _sample_FRET_histograms(
 def sample_FRET_histograms(
         T, populations, dist_distribution, darkD_mean_length, darkA_mean_length,
         pulse_frq, sample_window, p_darkD, p_darkA, p_light, burst_thresh,
-        lagtime, n_photon_std=None, n_samples=1, n_procs=1):
+        lagtime, n_photon_std=None, n_bursts=1, n_procs=1):
     """samples a MSM to regenerate experimental FRET distributions
 
     Attritbues
@@ -692,24 +693,24 @@ def sample_FRET_histograms(
     # fill in function values
     sample_func = partial(
         _sample_FRET_histograms,
-        T=T,
-        populations=populations,
-        dist_distribution=dist_distribution,
-        darkD_mean_length=darkD_mean_length,
-        darkA_mean_length=darkA_mean_length,
-        pulse_frq=pulse_frq,
-        lagtime=lagtime,
-        p_darkA=p_darkA,
-        p_darkD=p_darkD,
-        p_light=p_light,
-        sample_window=sample_window,
-        burst_thresh=burst_thresh,
-        n_photon_std=n_photon_std
+        T,
+        populations,
+        dist_distribution,
+        lagtime,
+        darkD_mean_length,
+        darkA_mean_length,
+        pulse_frq,
+        sample_window,
+        p_darkD,
+        p_darkA,
+        p_light,
+        burst_thresh,
+        n_photon_std
     )
 
     # multiprocess
     pool = Pool(processes=n_procs)
-    FEs = pool.map(sample_func, np.arange(n_samples))
+    FEs = pool.map(sample_func, np.arange(n_bursts))
     pool.terminate()
 
     # numpy the output

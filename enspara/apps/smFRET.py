@@ -288,7 +288,7 @@ def main(argv=None):
         FEs_sampling = dyes.sample_FRET_histograms(
             t_probabilties, populations=populations, dist_distribution=dist_distribution,
             photon_distribution=photon_distribution, n_photons=n_photons,
-            lagtime=lagtime, n_photon_std=n_photon_std, n_samples=n_samples,
+            lagtime=lagtime, n_photon_std=n_photon_std, n_bursts=n_samples,
             n_procs=n_procs)
         np.save("%s/FE_mcmc_histogram_%s.npy" % (output_folder, title), FEs_sampling)
 
