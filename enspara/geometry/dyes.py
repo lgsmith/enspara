@@ -628,10 +628,9 @@ def _sample_FRET_histograms(
         ]
     )
     print(excitation_probs)
-    # threshold the number of excitation events.
-    acceptor_emissions = []
+
     burst_att_idx = 0
-    while len(acceptor_emissions) < burst_thresh and burst_att_idx < max_burst_att:
+    while len(vis_excite_inds) < burst_thresh and burst_att_idx < max_burst_att:
         burst_att_idx += 1
         # need to clear and rebind the visible_excitation_inds each time we try
         # for a photon trajectory that has enough acceptor emissions in it.
@@ -643,14 +642,6 @@ def _sample_FRET_histograms(
         while pulse_index < len(donor_pulses):
             pulse_index += gen.choice(exc_outcomes, p=excitation_probs)
 
-        if resample_traj:
-            trj = synthetic_trajectory(T, initial_state, n_frames)
-        # get FRET probabilities for each excited state
-        FRET_probs = sample_FE_probs(dist_distribution, trj[vis_excite_inds])
-
-        # flip coin for donor or acceptor emissions
-        acceptor_emissions = gen.random(FRET_probs.shape[0]) <= FRET_probs
-
     if burst_att_idx >= max_burst_att:
         raise Exception(
             "Max attempts to simulate a photon burst exceeded. "
@@ -658,6 +649,13 @@ def _sample_FRET_histograms(
             "and your sample_window to make sure it's possible to "
             "attain your burst_thresh."
         )
+    # get FRET probabilities for each excited state
+    FRET_probs = sample_FE_probs(dist_distribution, trj[vis_excite_inds])
+
+    # flip coin for donor or acceptor emissions
+    acceptor_emissions = gen.random(FRET_probs.shape[0]) <= FRET_probs
+
+
     if save_photon_trj:
         np.savetxt(save_photon_trj+str(sample_index)+'.dat', vis_excite_inds)
     # average for final observed FRET
