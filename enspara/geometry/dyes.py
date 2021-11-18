@@ -750,7 +750,7 @@ def sample_FRET_histograms(
         burst_thresh,
         n_photon_std,
         save_photon_trj,
-        max_burst_at
+        max_burst_att
     )
 
     # run single threaded equivalent if nprocs = 1; FOR DEBUGGING
