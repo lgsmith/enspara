@@ -566,7 +566,6 @@ def _sample_FRET_histograms(
         n_photon_std,
         save_photon_trj,
         max_burst_att,
-        resample_traj,
         sample_index):
     """Helper function for sampling FRET distributions. Proceeds as 
     follows:
@@ -676,7 +675,7 @@ def sample_FRET_histograms(
         T, populations, dist_distribution, darkD_mean_length, darkA_mean_length,
         pulse_frq, sample_window, p_darkD, p_darkA, p_light, burst_thresh,
         lagtime, n_photon_std=None, n_bursts=1, n_procs=1, max_burst_att=10000,
-        save_photon_trj=None, resample_traj=False):
+        save_photon_trj=None):
     """samples a MSM to regenerate experimental FRET distributions
 
     Attritbues
@@ -751,8 +750,7 @@ def sample_FRET_histograms(
         burst_thresh,
         n_photon_std,
         save_photon_trj,
-        max_burst_att,
-        resample_traj
+        max_burst_at
     )
 
     # run single threaded equivalent if nprocs = 1; FOR DEBUGGING
