@@ -566,6 +566,7 @@ def _sample_FRET_histograms(
         n_photon_std,
         save_photon_trj,
         max_burst_att,
+        resample_traj,
         sample_index):
     """Helper function for sampling FRET distributions. Proceeds as 
     follows:
@@ -642,6 +643,8 @@ def _sample_FRET_histograms(
         while pulse_index < len(donor_pulses):
             pulse_index += gen.choice(exc_outcomes, p=excitation_probs)
 
+        if resample_traj:
+            trj = synthetic_trajectory(T, initial_state, n_frames)
         # get FRET probabilities for each excited state
         FRET_probs = sample_FE_probs(dist_distribution, trj[vis_excite_inds])
 
@@ -675,7 +678,7 @@ def sample_FRET_histograms(
         T, populations, dist_distribution, darkD_mean_length, darkA_mean_length,
         pulse_frq, sample_window, p_darkD, p_darkA, p_light, burst_thresh,
         lagtime, n_photon_std=None, n_bursts=1, n_procs=1, max_burst_att=10000,
-        save_photon_trj=None):
+        save_photon_trj=None, resample_traj=False):
     """samples a MSM to regenerate experimental FRET distributions
 
     Attritbues
@@ -720,6 +723,12 @@ def sample_FRET_histograms(
     n_burst_attempts : int, default=10000,
         Number of times to try to meet the burst thresh cutoff for acceptor
         photon counts in the burst window.
+    resample_traj : bool, default False,
+        Re-do the kinetic monte-carlo for each burst attempt. By default,
+        KMC is performed then different collections of excitation indices
+        are picked until a number of acceptor photons greater than the burst_thresh
+        is found. Setting this variable to true will cause a new trajectory to be made
+        each time, which is more accurate but likely not necessary for long sample_window/lagtime
 
     Returns
     ----------
@@ -744,7 +753,8 @@ def sample_FRET_histograms(
         burst_thresh,
         n_photon_std,
         save_photon_trj,
-        max_burst_att
+        max_burst_att,
+        resample_traj
     )
 
     # run single threaded equivalent if nprocs = 1; FOR DEBUGGING
