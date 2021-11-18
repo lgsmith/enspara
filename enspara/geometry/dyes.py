@@ -630,7 +630,7 @@ def _sample_FRET_histograms(
     # threshold the number of excitation events.
     acceptor_emissions = []
     burst_att_idx = 0
-    while acceptor_emissions < burst_thresh and burst_att_idx < max_burst_att:
+    while len(acceptor_emissions) < burst_thresh and burst_att_idx < max_burst_att:
         burst_att_idx += 1
         # need to clear and rebind the visible_excitation_inds each time we try
         # for a photon trajectory that has enough acceptor emissions in it.
