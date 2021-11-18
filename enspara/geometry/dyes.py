@@ -588,7 +588,7 @@ def _sample_FRET_histograms(
     donor_pulses = np.arange(0, sample_window_lag, pulse_frq_lag, dtype=int)
     # functions to cause each event type to occur. All return the value by which
     # they 'advance' the index of the pulse sequence.
-    def no_excitation(pulse_index):
+    def no_excitation():
         return 1
 
     def excitation(vis_exces, donor_pulses):
