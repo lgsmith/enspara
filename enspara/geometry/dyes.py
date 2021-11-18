@@ -640,7 +640,7 @@ def _sample_FRET_histograms(
         # populate a list of frame indices that correspond to successful
         # excitations from the donor pulses.
         while pulse_index < len(donor_pulses):
-            pulse_index += gen.choice(exc_outcomes, p=excitation_probs)
+            pulse_index += gen.choice(exc_outcomes, p=excitation_probs)()
 
     if burst_att_idx >= max_burst_att:
         raise Exception(
