@@ -539,13 +539,13 @@ def dye_distance_distribution(
     return probs, bin_edges
 
 
-def sample_FE_probs(dist_distribution, states):
+def sample_FE_probs(dist_distribution, states, gen=np.random.default_rng()):
     dists = []
     bin_width = dist_distribution[0][1,0] - dist_distribution[0][0,0]
     for state in states:
-        dist = np.random.choice(
+        dist = gen.choice(
             dist_distribution[state][:,0], p=dist_distribution[state][:,1])
-        dist += (np.random.random()*bin_width) - (bin_width/2.)
+        dist += (gen.random()*bin_width) - (bin_width/2.)
         dists.append(dist)
     FEs = FRET_efficiency(np.array(dists))
     return FEs
@@ -602,7 +602,6 @@ def _sample_FRET_histograms(
     def acceptor_dark(gen, darkA_pulse_mean, d_a_pulse_offset):
         return gen.geometric(darkA_pulse_mean) + d_a_pulse_offset
 
-    print('defined choice functions.')
     vis_excite_inds = []
     exc_outcomes = [
         no_excitation,
@@ -626,7 +625,6 @@ def _sample_FRET_histograms(
             p_darkA
         ]
     )
-    print(excitation_probs)
 
     burst_att_idx = 0
     while len(vis_excite_inds) < burst_thresh and burst_att_idx < max_burst_att:
@@ -649,7 +647,7 @@ def _sample_FRET_histograms(
             "attain your burst_thresh."
         )
     # get FRET probabilities for each excited state
-    FRET_probs = sample_FE_probs(dist_distribution, trj[vis_excite_inds])
+    FRET_probs = sample_FE_probs(dist_distribution, trj[vis_excite_inds], gen=gen)
 
     # flip coin for donor or acceptor emissions
     acceptor_emissions = gen.random(FRET_probs.shape[0]) <= FRET_probs
