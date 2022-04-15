@@ -184,6 +184,12 @@ def concatenate_trjs(trj_list, atoms=None, n_procs=None):
     """
 
     example_center = trj_list[0]
+    # need to check if the tops have bonds, or just tuples, because of an issue in 1.9.4 mdtraj subset fxn
+    if isinstance(example_center.top._bonds[0], tuple):
+        # must zero out the bonds_list first
+        example_center.top._bonds = []
+        # use residue names to define MDTraj Bond objects
+        example_center.top.create_standard_bonds()
     if atoms is not None:
         example_center = example_center.atom_slice(
             example_center.top.select(atoms))
