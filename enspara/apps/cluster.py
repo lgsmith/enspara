@@ -57,7 +57,7 @@ from enspara.util.log import timed
 from enspara.util.parallel import auto_nprocs
 from enspara.cluster.util import load_frames, partition_indices, ClusterResult
 
-from enspara.geometry import libdist
+from enspara.geometry import libdist, twofold_symmetric_rmsd
 
 from enspara import exception
 from enspara import mpi
@@ -67,10 +67,18 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
+
+
+# options for assessing distances between trajectories. Keys must be strings.
+traj_distance_functions = {
+    'rmsd': md.rmsd,
+    'twofold_symmetric_rmsd': twofold_symmetric_rmsd
+}
+
 def process_command_line(argv):
 
     FEATURE_DISTANCES = ['euclidean', 'manhattan']
-    TRAJECTORY_DISTANCES = ['rmsd']
+    TRAJECTORY_DISTANCES = list(traj_distance_functions.keys())
 
     parser = argparse.ArgumentParser(
         prog='cluster',
@@ -187,12 +195,12 @@ def process_command_line(argv):
     elif args.trajectories and args.topologies:
         args.trajectories = expand_files(args.trajectories)
 
-        if not args.cluster_distance or args.cluster_distance == 'rmsd':
-            args.cluster_distance = md.rmsd
-        else:
+        try:
+            args.cluster_distance = traj_distance_functions[args.cluster_distance]
+        except KeyError:
             raise exception.ImproperlyConfigured(
-                "Option --cluster-distance must be rmsd when clustering "
-                "trajectories.")
+                "Option --cluster-distance must be one of the following when clustering "
+                "trajectories:" + ' '.join(TRAJECTORY_DISTANCES))
 
         if not args.atoms:
             raise exception.ImproperlyConfigured(
@@ -291,10 +299,10 @@ def load_features(features, stride):
 def load_trajectories(topologies, trajectories, selections, stride, processes):
 
     for top, selection in zip(topologies, selections):
-        sentinel_trj = md.load(top)
+        sentinel_top = md.load_topology(top)
         try:
             # noop, but causes fast-fail w/bad args.atoms
-            sentinel_trj.top.select(selection)
+            sentinel_top.select(selection)
         except:
             raise exception.ImproperlyConfigured((
                 "The provided selection '{s}' didn't match the topology "
@@ -306,7 +314,7 @@ def load_trajectories(topologies, trajectories, selections, stride, processes):
 
     for topfile, trjset, selection in zip(topologies, trajectories,
                                           selections):
-        top = md.load(topfile).top
+        top = md.load_topology(topfile)
         indices = top.select(selection)
 
         if n_inds is not None:
@@ -358,7 +366,7 @@ def load_asymm_frames(center_indices, trajectories, topology, subsample):
             subframes = load_frames(
                 list(itertools.chain(*trajectories)),
                 target_centers,
-                top=md.load(topfile).top,
+                top=topfile,
                 stride=subsample)
         except exception.ImproperlyConfigured:
             logger.error('Failure to load cluster centers %s for topology %s',
