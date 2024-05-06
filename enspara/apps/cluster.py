@@ -189,7 +189,6 @@ def process_command_line(argv):
     elif args.trajectories and args.topologies:
         args.trajectories = expand_files(args.trajectories)
 
-        
         if not args.atoms:
             raise exception.ImproperlyConfigured(
                 "Option --atoms is required when clustering trajectories.")

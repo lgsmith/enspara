@@ -14,7 +14,7 @@ import mdtraj as md
 import numpy as np
 
 from ..geometry.libdist import euclidean, manhattan
-from ..geometry import twofold_symmetric_rmsd
+from ..geometry.twofold_symmetric_rmsd import twofold_symmetric_rmsd
 
 from ..exception import ImproperlyConfigured, DataInvalid
 from ..ra.ra import partition_list, partition_indices
