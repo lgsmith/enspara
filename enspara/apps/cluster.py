@@ -189,13 +189,7 @@ def process_command_line(argv):
     elif args.trajectories and args.topologies:
         args.trajectories = expand_files(args.trajectories)
 
-        try:
-            args.cluster_distance = traj_distance_functions[args.cluster_distance]
-        except KeyError:
-            raise exception.ImproperlyConfigured(
-                "Option --cluster-distance must be one of the following when clustering "
-                "trajectories:" + ' '.join(TRAJECTORY_DISTANCES))
-
+        
         if not args.atoms:
             raise exception.ImproperlyConfigured(
                 "Option --atoms is required when clustering trajectories.")
