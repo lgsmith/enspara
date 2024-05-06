@@ -14,6 +14,7 @@ import mdtraj as md
 import numpy as np
 
 from ..geometry.libdist import euclidean, manhattan
+from ..geometry import twofold_symmetric_rmsd
 
 from ..exception import ImproperlyConfigured, DataInvalid
 from ..ra.ra import partition_list, partition_indices
@@ -272,6 +273,8 @@ def load_frames(filenames, indices, **kwargs):
 def _get_distance_method(metric):
     if metric == 'rmsd':
         return md.rmsd
+    if metric == 'twofold_symmetric_rmsd':
+        return twofold_symmetric_rmsd
     if metric == 'euclidean':
         return euclidean
     elif metric in ['cityblock', 'manhattan']:

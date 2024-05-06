@@ -57,7 +57,7 @@ from enspara.util.log import timed
 from enspara.util.parallel import auto_nprocs
 from enspara.cluster.util import load_frames, partition_indices, ClusterResult
 
-from enspara.geometry import libdist, twofold_symmetric_rmsd
+from enspara.geometry import libdist
 
 from enspara import exception
 from enspara import mpi
@@ -69,16 +69,10 @@ logger.setLevel(logging.INFO)
 
 
 
-# options for assessing distances between trajectories. Keys must be strings.
-traj_distance_functions = {
-    'rmsd': md.rmsd,
-    'twofold_symmetric_rmsd': twofold_symmetric_rmsd
-}
-
 def process_command_line(argv):
 
     FEATURE_DISTANCES = ['euclidean', 'manhattan']
-    TRAJECTORY_DISTANCES = list(traj_distance_functions.keys())
+    TRAJECTORY_DISTANCES = ['rmsd', 'twofold_symmetric_rmsd']
 
     parser = argparse.ArgumentParser(
         prog='cluster',
