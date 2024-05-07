@@ -28,7 +28,7 @@ logging.basicConfig(
 
 import enspara
 
-from enspara.cluster.util import assign_to_nearest_center, partition_list
+from enspara.cluster.util import assign_to_nearest_center, partition_list, _get_distance_method
 from enspara.util.load import (concatenate_trjs, sound_trajectory,
                                load_as_concatenated)
 from enspara import ra
@@ -40,7 +40,7 @@ logger.setLevel(logging.INFO)
 
 
 def process_command_line(argv):
-
+    TRAJECTORY_DISTANCES = ['rmsd', 'twofold_symmetric_rmsd']
     parser = argparse.ArgumentParser(formatter_class=argparse.
                                      ArgumentDefaultsHelpFormatter)
 
@@ -65,7 +65,11 @@ def process_command_line(argv):
         '-m', '--mem-fraction', default=0.5, type=float,
         help="The fraction of total RAM to use in deciding the batch size. "
              "Genrally, this number shouldn't be much higher than 0.5.")
-
+    parser.add_argument(
+        "--cluster-distance", default='rmsd',
+        choices=TRAJECTORY_DISTANCES,
+        help="The metric for measuring distances. Some metrics (e.g. rmsd) "
+             "only apply to trajectories, and others only to features.")
     # OUTPUT ARGS
     parser.add_argument(
         '--distances', required=True,
@@ -129,8 +133,8 @@ def determine_batch_size(n_atoms, dtype_bytes, frac_mem):
     return batch_size, batch_gb
 
 
-def batch_reassign(targets, centers, lengths, frac_mem, n_procs=None):
-
+def batch_reassign(targets, centers, lengths, frac_mem, metric, n_procs=None, precenter=False):
+    metric = _get_distance_method(metric)
     example_center = centers[0]
 
     DTYPE_BYTES = 4
@@ -170,14 +174,18 @@ def batch_reassign(targets, centers, lengths, frac_mem, n_procs=None):
         assert xyz.dtype.itemsize == DTYPE_BYTES
 
         trj = md.Trajectory(xyz, topology=example_center.top)
+        if precenter:
+            with timed("Precentered trajectories in %.1f seconds", logger.debug):
+                trj.center_coordinates()
 
-        with timed("Precentered trajectories in %.1f seconds", logger.debug):
-            trj.center_coordinates()
-
-        with timed("Assigned trajectories in %.1f seconds", logger.debug):
-            batch_assignments, batch_distances = assign_to_nearest_center(
-                    trj, centers, partial(md.rmsd, precentered=True))
-
+            with timed("Assigned trajectories in %.1f seconds", logger.debug):
+                batch_assignments, batch_distances = assign_to_nearest_center(
+                        trj, centers, partial(metric, precentered=True))
+        else:
+            with timed("Assigned trajectories in %.1f seconds", logger.debug):
+                batch_assignments, batch_distances = assign_to_nearest_center(
+                        trj, centers, metric)
+ 
         # clear memory of xyz and trj to allow cleanup to deallocate
         # these large arrays; may help with memory high-water mark
         with timed("Cleared array from memory in %.1f seconds", logger.debug):
@@ -199,7 +207,7 @@ def batch_reassign(targets, centers, lengths, frac_mem, n_procs=None):
     return assignments, distances
 
 
-def reassign(topologies, trajectories, atoms, centers, frac_mem=0.5):
+def reassign(topologies, trajectories, atoms, centers, metric, frac_mem=0.5):
     """Reassign a set of trajectories based on a subset of atoms and centers.
 
     Parameters
@@ -216,6 +224,8 @@ def reassign(topologies, trajectories, atoms, centers, frac_mem=0.5):
         the reassignment.
     centers : md.Trajectory or list of trajectories
         The atoms representing the centers to reassign to.
+    metric : string
+        Name of a distance metric registered with enspara.cluster.util
     frac_mem : float, default=0.5
         The fraction of main RAM to use for trajectories. A lower number
         will mean more batches.
@@ -246,6 +256,11 @@ def reassign(topologies, trajectories, atoms, centers, frac_mem=0.5):
     # precenter centers (there will be many RMSD calcs here)
     for c in centers:
         c.center_coordinates()
+    
+    if metric == 'rmsd':
+        precenter=True
+    else:
+        precenter=False
 
     with timed("Reassignment took %.1f seconds.", logger.info):
         # build flat list of targets
@@ -271,7 +286,7 @@ def reassign(topologies, trajectories, atoms, centers, frac_mem=0.5):
                     time.perf_counter() - tick_sounding)
 
         assignments, distances = batch_reassign(
-            targets, centers, lengths, frac_mem=frac_mem, n_procs=n_procs)
+            targets, centers, lengths, frac_mem, metric, n_procs=n_procs, precenter=precenter)
 
     if all([len(assignments[0]) == len(a) for a in assignments]):
         logger.info("Trajectory lengths are homogenous. Output will "
@@ -301,7 +316,7 @@ def main(argv=None):
 
     assig, dist = reassign(
         args.topologies, args.trajectories, [args.atoms]*len(args.topologies),
-        centers=centers, frac_mem=args.mem_fraction)
+        centers=centers, metric=args.cluster_distance, frac_mem=args.mem_fraction)
 
     mem_highwater = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     logger.info(
