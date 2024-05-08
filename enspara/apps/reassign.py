@@ -11,6 +11,7 @@ import logging
 import pickle
 import time
 import resource
+from pathlib import Path
 
 from functools import partial
 
@@ -266,7 +267,10 @@ def reassign(topologies, trajectories, atoms, centers, metric, frac_mem=0.5):
         # build flat list of targets
         targets = []
         for topfile, trjfiles, atoms in zip(topologies, trajectories, atoms):
-            t = md.load(topfile).top
+            if Path(topfile).suffix == '.prmtop':
+                t = md.load_prmtop(topfile)
+            else:
+                t = md.load(topfile).top
             atom_ids = t.select(atoms)
             for trjfile in trjfiles:
                 assert os.path.exists(trjfile)
